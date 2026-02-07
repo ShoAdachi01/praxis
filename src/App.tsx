@@ -78,6 +78,37 @@ function LoadingScreen() {
   )
 }
 
+function ProfileErrorScreen({ onRetry, onSignOut }: { onRetry: () => void; onSignOut: () => void }) {
+  return (
+    <div className="h-full flex flex-col items-center justify-center px-8 grain">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+        className="text-center"
+      >
+        <p className="text-sm opacity-50 mb-8">
+          unable to load profile
+        </p>
+        <div className="flex gap-6 justify-center">
+          <button
+            onClick={onRetry}
+            className="text-xs opacity-35 hover:opacity-60 transition-opacity duration-300"
+          >
+            try again
+          </button>
+          <button
+            onClick={onSignOut}
+            className="text-xs opacity-35 hover:opacity-60 transition-opacity duration-300"
+          >
+            sign out
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
 function MainApp() {
   const [searchParams] = useSearchParams()
   const urlTheme = searchParams.get('theme') as Theme | null
@@ -95,7 +126,7 @@ function MainApp() {
     localStorage.setItem('praxis-theme', newTheme)
   }
 
-  const { user, profile, loading: authLoading, signInWithEmail, devSignIn } = useAuth()
+  const { user, profile, profileError, loading: authLoading, isProcessingCallback, signInWithEmail, signOut, devSignIn, retryProfile } = useAuth()
   const { myStones, partnerStones, placeStone } = useStones(
     user?.id,
     profile?.partner_id ?? null
@@ -212,7 +243,11 @@ function MainApp() {
   }
 
   // Loading state (skip if demo mode or dev user)
-  if (!useLocalState && authLoading) {
+  // Also gate on isProcessingCallback: after magic link redirect, Supabase's PKCE
+  // flow calls replaceState() to strip the ?code= param. On iPhone Safari, this
+  // breaks touch handling if the component tree is already mounted. By showing
+  // LoadingScreen until the callback completes, we avoid the broken state.
+  if (!useLocalState && (authLoading || isProcessingCallback)) {
     return <LoadingScreen />
   }
 
@@ -223,6 +258,9 @@ function MainApp() {
 
   // Wait for profile to load after authentication (skip for dev users - profile set instantly)
   if (!useLocalState && user && !profile) {
+    if (profileError) {
+      return <ProfileErrorScreen onRetry={retryProfile} onSignOut={signOut} />
+    }
     return <LoadingScreen />
   }
 

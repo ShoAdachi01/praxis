@@ -12,15 +12,6 @@ export function ThoughtInput({ onSubmit, autoFocus = true }: ThoughtInputProps) 
   const maxLength = 280
 
   useEffect(() => {
-    if (autoFocus) {
-      const timer = setTimeout(() => {
-        inputRef.current?.focus()
-      }, 100)
-      return () => clearTimeout(timer)
-    }
-  }, [autoFocus])
-
-  useEffect(() => {
     const textarea = inputRef.current
     if (textarea) {
       textarea.style.height = 'auto'
@@ -56,6 +47,7 @@ export function ThoughtInput({ onSubmit, autoFocus = true }: ThoughtInputProps) 
         }}
         rows={1}
         placeholder=""
+        autoFocus={autoFocus}
       />
       {text.length > maxLength * 0.8 && (
         <span

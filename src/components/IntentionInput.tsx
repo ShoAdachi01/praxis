@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react'
 import { motion } from 'framer-motion'
 
 interface IntentionInputProps {
@@ -12,14 +12,6 @@ export function IntentionInput({ onSubmit, maxLength = 140 }: IntentionInputProp
   const [submitting, setSubmitting] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Auto-focus on mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      textareaRef.current?.focus()
-    }, 100)
-    return () => clearTimeout(timer)
-  }, [])
-
   // Auto-resize textarea
   useEffect(() => {
     const textarea = textareaRef.current
@@ -28,6 +20,26 @@ export function IntentionInput({ onSubmit, maxLength = 140 }: IntentionInputProp
       textarea.style.height = `${textarea.scrollHeight}px`
     }
   }, [text])
+
+  // Handle visual viewport resize (mobile keyboard)
+  // When keyboard opens, scroll the input into view
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea || !window.visualViewport) return
+
+    const handleResize = () => {
+      // Only scroll into view if this textarea is focused
+      if (document.activeElement === textarea) {
+        // Small delay to let the viewport settle
+        requestAnimationFrame(() => {
+          textarea.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        })
+      }
+    }
+
+    window.visualViewport.addEventListener('resize', handleResize)
+    return () => window.visualViewport?.removeEventListener('resize', handleResize)
+  }, [])
 
   const handleKeyDown = async (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -42,8 +54,16 @@ export function IntentionInput({ onSubmit, maxLength = 140 }: IntentionInputProp
     }
   }
 
+  // Click anywhere in the container to focus - tap fallback for mobile
+  const handleContainerClick = useCallback(() => {
+    textareaRef.current?.focus()
+  }, [])
+
   return (
-    <div className="relative w-full max-w-md mx-auto px-8">
+    <div
+      className="relative w-full max-w-md mx-auto px-8 cursor-text"
+      onClick={handleContainerClick}
+    >
       <motion.div
         animate={{
           scale: focused ? 1.01 : 1,
@@ -63,6 +83,7 @@ export function IntentionInput({ onSubmit, maxLength = 140 }: IntentionInputProp
           onBlur={() => setFocused(false)}
           className="invisible-input min-h-[3rem] max-h-[50vh]"
           rows={1}
+          autoFocus
         />
       </motion.div>
 

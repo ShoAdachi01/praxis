@@ -6,7 +6,12 @@ export function useAuth() {
   const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [profileError, setProfileError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isProcessingCallback, setIsProcessingCallback] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return new URLSearchParams(window.location.search).has('code')
+  })
 
   useEffect(() => {
     // Get initial session
@@ -18,18 +23,29 @@ export function useAuth() {
       } else {
         setLoading(false)
       }
+      // If there's no PKCE callback in progress, clear the flag immediately.
+      // When there IS a callback, onAuthStateChange will clear it after the
+      // code exchange and replaceState are complete.
+      if (!new URLSearchParams(window.location.search).has('code')) {
+        setIsProcessingCallback(false)
+      }
     })
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        setSession(session)
-        setUser(session?.user ?? null)
-        if (session?.user) {
-          await fetchProfile(session.user.id, session.user.email)
-        } else {
-          setProfile(null)
-          setLoading(false)
+        try {
+          setSession(session)
+          setUser(session?.user ?? null)
+          if (session?.user) {
+            await fetchProfile(session.user.id, session.user.email)
+          } else {
+            setProfile(null)
+            setLoading(false)
+          }
+        } finally {
+          // Auth callback (PKCE code exchange + replaceState) is complete
+          setIsProcessingCallback(false)
         }
       }
     )
@@ -39,6 +55,7 @@ export function useAuth() {
 
   const fetchProfile = async (userId: string, email?: string) => {
     try {
+      setProfileError(null)
       console.log('[useAuth] fetchProfile called', { userId, email })
 
       // Try to fetch existing profile
@@ -69,25 +86,36 @@ export function useAuth() {
         if (!insertError && newProfile) {
           data = newProfile
           error = null
+        } else if (insertError) {
+          // Propagate insert failure so the else branch below catches it
+          error = insertError
         }
       }
 
       if (!error && data) {
         console.log('[useAuth] Setting profile', data)
         setProfile(data)
-      } else if (error && error.code !== 'PGRST116') {
-        // Profile fetch failed with unexpected error (auth expired, network, RLS, etc.)
-        // Sign out to allow fresh login instead of getting stuck on loading screen
-        console.error('[useAuth] Profile fetch failed, signing out:', error)
-        await supabase.auth.signOut()
-        setUser(null)
-        setSession(null)
-        setProfile(null)
+      } else {
+        // Profile fetch/create failed — surface the error to the UI
+        // so it can offer retry/sign-out instead of infinite loading
+        console.error('[useAuth] Profile fetch failed:', error)
+        setProfileError(error?.message ?? 'unable to load profile')
       }
+    } catch (err) {
+      // Handle thrown exceptions (network failures, CORS errors, offline)
+      // that bypass the Supabase error-return pattern
+      console.error('[useAuth] Profile fetch threw:', err)
+      setProfileError(err instanceof Error ? err.message : 'unable to load profile')
     } finally {
       setLoading(false)
     }
   }
+
+  const retryProfile = useCallback(async () => {
+    if (!user) return
+    setLoading(true)
+    await fetchProfile(user.id, user.email ?? undefined)
+  }, [user])
 
   const signInWithEmail = useCallback(async (email: string) => {
     const { error } = await supabase.auth.signInWithOtp({
@@ -104,6 +132,7 @@ export function useAuth() {
     setSession(null)
     setUser(null)
     setProfile(null)
+    setProfileError(null)
   }, [])
 
   // Bypass login with real Supabase auth
@@ -141,9 +170,12 @@ export function useAuth() {
     session,
     user,
     profile,
+    profileError,
     loading,
+    isProcessingCallback,
     signInWithEmail,
     signOut,
     devSignIn,
+    retryProfile,
   }
 }
