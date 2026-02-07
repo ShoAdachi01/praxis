@@ -59,11 +59,23 @@ export function useAuth() {
       console.log('[useAuth] fetchProfile called', { userId, email })
 
       // Try to fetch existing profile
-      let { data, error } = await supabase
+      // Wrap in a timeout so the UI never hangs forever
+      // (e.g. if an RLS policy causes a recursive/hanging query)
+      const query = supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single()
+
+      let { data, error } = await Promise.race([
+        query.then(res => res),
+        new Promise<{ data: null; error: { message: string; code: string } }>((resolve) =>
+          setTimeout(() => resolve({
+            data: null,
+            error: { message: 'profile query timed out', code: 'TIMEOUT' },
+          }), 10000)
+        ),
+      ])
 
       console.log('[useAuth] fetch result', { data, error, errorCode: error?.code })
 
