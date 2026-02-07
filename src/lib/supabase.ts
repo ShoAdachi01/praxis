@@ -49,3 +49,13 @@ export type Thought = {
   text: string
   created_at: string
 }
+
+export type SocialConnection = {
+  id: string
+  user_id: string
+  provider: string
+  auto_publish: boolean
+  provider_username: string | null
+  created_at: string
+  updated_at: string
+}
