@@ -5,10 +5,12 @@ import { useAuth } from '@/hooks/useAuth'
 import { useStones } from '@/hooks/useStones'
 import { usePartner } from '@/hooks/usePartner'
 import { useThoughts } from '@/hooks/useThoughts'
+import { useXConnection } from '@/hooks/useXConnection'
 import { AuthGate } from '@/components/AuthGate'
 import { Garden } from '@/components/Garden'
 import { InviteFlow } from '@/components/InviteFlow'
-import { Profile, Stone, Thought } from '@/lib/supabase'
+import { SettingsPanel } from '@/components/SettingsPanel'
+import { supabase, Profile, Stone, Thought } from '@/lib/supabase'
 
 // Theme variants
 // ?theme=stone (warm, current default)
@@ -29,7 +31,7 @@ const DEMO_PROFILE: Profile = {
 function JoinRoute() {
   const { code } = useParams<{ code: string }>()
   const navigate = useNavigate()
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, signInWithEmail, devSignIn } = useAuth()
   const { claimInvite } = usePartner(user?.id)
   const [claimed, setClaimed] = useState(false)
 
@@ -54,7 +56,7 @@ function JoinRoute() {
   }
 
   if (!user) {
-    return <AuthGate onSignIn={async () => ({ error: null })} />
+    return <AuthGate onSignIn={signInWithEmail} onDevSignIn={devSignIn} />
   }
 
   return <LoadingScreen />
@@ -109,6 +111,34 @@ function ProfileErrorScreen({ onRetry, onSignOut }: { onRetry: () => void; onSig
   )
 }
 
+function XCallbackRoute() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const { user, loading: authLoading } = useAuth()
+  const { exchangeCode } = useXConnection(user?.id)
+  const [processed, setProcessed] = useState(false)
+
+  useEffect(() => {
+    if (authLoading || processed || !user) return
+
+    const code = searchParams.get('code')
+    const state = searchParams.get('state')
+    const savedState = sessionStorage.getItem('x_oauth_state')
+
+    if (!code || !state || state !== savedState) {
+      navigate('/', { replace: true })
+      return
+    }
+
+    setProcessed(true)
+    exchangeCode(code).then(() => {
+      navigate('/', { replace: true })
+    })
+  }, [authLoading, user, processed, searchParams, exchangeCode, navigate])
+
+  return <LoadingScreen />
+}
+
 function MainApp() {
   const [searchParams] = useSearchParams()
   const urlTheme = searchParams.get('theme') as Theme | null
@@ -134,7 +164,33 @@ function MainApp() {
   const { createInvite, claimInvite } = usePartner(user?.id)
 
   const [showInviteFlow, setShowInviteFlow] = useState(false)
-  const [partnerProfile] = useState<{ display_initial: string } | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const [partnerProfile, setPartnerProfile] = useState<{ display_initial: string } | null>(null)
+
+  // X connection
+  const {
+    connection: xConnection,
+    loading: xLoading,
+    connectX,
+    toggleAutoPublish,
+    publishStone,
+  } = useXConnection(user?.id)
+
+  // Fetch partner's profile when partner_id is available
+  useEffect(() => {
+    if (!profile?.partner_id) {
+      setPartnerProfile(null)
+      return
+    }
+    supabase
+      .from('profiles')
+      .select('display_initial')
+      .eq('id', profile.partner_id)
+      .single()
+      .then(({ data }) => {
+        if (data) setPartnerProfile(data)
+      })
+  }, [profile?.partner_id])
 
   // Demo mode - only enabled if Supabase credentials aren't configured
   const demoMode = DEMO_MODE
@@ -224,7 +280,12 @@ function MainApp() {
       setLocalStones(prev => [newStone, ...prev])
       return { error: null }
     }
-    return placeStone(text)
+    const result = await placeStone(text)
+    // Fire-and-forget publish to X if connected and auto_publish enabled
+    if (!result.error) {
+      publishStone(text)
+    }
+    return result
   }
 
   const handleAddThought = async (stoneId: string, text: string) => {
@@ -284,18 +345,33 @@ function MainApp() {
 
   // Garden component (stone/moss themes)
   return (
-    <Garden
-      profile={activeProfile}
-      myStones={activeMyStones}
-      partnerStones={activePartnerStones}
-      partnerInitial={partnerProfile?.display_initial}
-      onPlaceStone={handlePlaceStone}
-      hasPartner={hasPartner}
-      theme={theme}
-      thoughtsByStone={activeThoughtsByStone}
-      onAddThought={handleAddThought}
-      onToggleTheme={toggleTheme}
-    />
+    <>
+      <Garden
+        profile={activeProfile}
+        myStones={activeMyStones}
+        partnerStones={activePartnerStones}
+        partnerInitial={partnerProfile?.display_initial}
+        onPlaceStone={handlePlaceStone}
+        hasPartner={hasPartner}
+        theme={theme}
+        thoughtsByStone={activeThoughtsByStone}
+        onAddThought={handleAddThought}
+        onToggleTheme={toggleTheme}
+        onOpenSettings={() => setShowSettings(true)}
+      />
+      <SettingsPanel
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        initial={activeProfile.display_initial}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        xUsername={xConnection?.provider_username ?? null}
+        xAutoPublish={xConnection?.auto_publish ?? false}
+        xLoading={xLoading}
+        onConnectX={connectX}
+        onToggleAutoPublish={toggleAutoPublish}
+      />
+    </>
   )
 }
 
@@ -304,6 +380,7 @@ export default function App() {
     <div className="h-full w-full">
       <Routes>
         <Route path="/join/:code" element={<JoinRoute />} />
+        <Route path="/connect/x/callback" element={<XCallbackRoute />} />
         <Route path="*" element={<MainApp />} />
       </Routes>
     </div>

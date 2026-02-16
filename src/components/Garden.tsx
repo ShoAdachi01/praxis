@@ -18,6 +18,7 @@ interface GardenProps {
   thoughtsByStone: Map<string, Thought[]>
   onAddThought: (stoneId: string, text: string) => Promise<{ error: Error | null }>
   onToggleTheme?: () => void
+  onOpenSettings?: () => void
 }
 
 const springTransition = {
@@ -36,7 +37,7 @@ export function Garden({
   theme = 'stone',
   thoughtsByStone,
   onAddThought,
-  onToggleTheme,
+  onOpenSettings,
 }: GardenProps) {
   const [view, setView] = useState<GardenView>('self')
 
@@ -77,13 +78,13 @@ export function Garden({
           >
             <IntentionInput onSubmit={handleSubmit} />
 
-            {/* User initial badge - tap to toggle theme */}
+            {/* User initial badge - tap to open settings */}
             <motion.button
-              onClick={onToggleTheme}
+              onClick={onOpenSettings}
               whileTap={{ scale: 0.95 }}
               className="absolute bottom-8 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium cursor-pointer"
               style={{
-                backgroundColor: 'var(--text-muted)',
+                backgroundColor: 'var(--text-self)',
                 color: 'var(--bg-self)',
                 opacity: 0.3,
               }}
