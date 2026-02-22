@@ -75,17 +75,10 @@ export function usePartner(userId: string | undefined) {
     })
 
     if (linkError) {
-      // Fallback to direct updates if RPC doesn't exist
-      await Promise.all([
-        supabase
-          .from('profiles')
-          .update({ partner_id: invite.created_by })
-          .eq('id', userId),
-        supabase
-          .from('profiles')
-          .update({ partner_id: userId })
-          .eq('id', invite.created_by),
-      ])
+      console.error('[usePartner] link_partners failed:', linkError)
+      setError('Could not connect accounts')
+      setLoading(false)
+      return false
     }
 
     // Mark invite as claimed
