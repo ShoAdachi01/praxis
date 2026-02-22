@@ -16,20 +16,28 @@ export function AuthGate({ onSignIn, onDevSignIn }: AuthGateProps) {
     e.preventDefault()
     if (!email.trim() || loading) return
 
+    setLoading(true)
+    setError(null)
+
     // Bypass login: try bypass first, falls through if code doesn't match
     if (onDevSignIn) {
       const success = await onDevSignIn(email.trim())
-      if (success) return
+      if (success) return // auth state change will handle the rest
+      // If input looks like a bypass code (no @), show specific error
+      if (!email.includes('@')) {
+        setLoading(false)
+        setError('invalid code')
+        return
+      }
     }
 
-    // Simple email validation (only if not a bypass code)
+    // Simple email validation
     if (!email.includes('@')) {
+      setLoading(false)
       setError('enter a valid email')
       return
     }
 
-    setLoading(true)
-    setError(null)
     const { error: signInError } = await onSignIn(email)
     setLoading(false)
 
