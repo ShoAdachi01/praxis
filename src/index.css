@@ -9,6 +9,9 @@
   --bg-shared: #f5f7f9;
   --text-shared: #505560;
   --accent-shared: #8a9a7f;
+  --text-muted: rgba(69, 69, 69, 0.4);
+  --text-primary: #454545;
+  --border-subtle: rgba(69, 69, 69, 0.12);
   --transition-slow: 800ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-medium: 400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -24,6 +27,9 @@
   --bg-shared: #243a2c;
   --text-shared: #c4dcc0;
   --accent-shared: #6a9a58;
+  --text-muted: rgba(212, 232, 208, 0.4);
+  --text-primary: #d4e8d0;
+  --border-subtle: rgba(212, 232, 208, 0.12);
 }
 
 /* Stone theme */
@@ -34,6 +40,9 @@
   --bg-shared: #faf9f7;
   --text-shared: #4a4a4a;
   --accent-shared: #8a7a6a;
+  --text-muted: rgba(61, 61, 61, 0.4);
+  --text-primary: #3d3d3d;
+  --border-subtle: rgba(61, 61, 61, 0.12);
 }
 
 * {
