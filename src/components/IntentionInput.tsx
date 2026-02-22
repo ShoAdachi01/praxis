@@ -87,7 +87,17 @@ export function IntentionInput({ onSubmit, maxLength = 140 }: IntentionInputProp
         />
       </motion.div>
 
-      {/* No indicator - the blinking cursor is enough */}
+      {/* Subtle placeholder - appears when empty and unfocused */}
+      {!text && !focused && (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.15 }}
+          transition={{ delay: 1.5, duration: 1 }}
+          className="absolute inset-0 flex items-center justify-center pointer-events-none text-center intention-text"
+        >
+          place a stone
+        </motion.p>
+      )}
 
       {/* Subtle character count - only when near limit */}
       {text.length > maxLength * 0.8 && (
