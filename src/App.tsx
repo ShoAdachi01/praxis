@@ -43,10 +43,12 @@ function JoinRoute() {
 
   useEffect(() => {
     if (user && code && !claimed) {
-      claimInvite(code).then(() => {
-        setClaimed(true)
-        sessionStorage.removeItem('pendingInvite')
-        navigate('/', { replace: true })
+      claimInvite(code).then((success) => {
+        if (success) {
+          setClaimed(true)
+          sessionStorage.removeItem('pendingInvite')
+          navigate('/', { replace: true })
+        }
       })
     }
   }, [user, code, claimed, claimInvite, navigate])
@@ -233,8 +235,10 @@ function MainApp() {
     if (user && !profile?.partner_id) {
       const pendingInvite = sessionStorage.getItem('pendingInvite')
       if (pendingInvite) {
-        claimInvite(pendingInvite).then(() => {
-          sessionStorage.removeItem('pendingInvite')
+        claimInvite(pendingInvite).then((success) => {
+          if (success) {
+            sessionStorage.removeItem('pendingInvite')
+          }
         })
       }
     }
