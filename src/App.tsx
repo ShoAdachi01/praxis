@@ -238,11 +238,12 @@ function MainApp() {
         claimInvite(pendingInvite).then((success) => {
           if (success) {
             sessionStorage.removeItem('pendingInvite')
+            retryProfile()
           }
         })
       }
     }
-  }, [user, profile?.partner_id, claimInvite])
+  }, [user, profile?.partner_id, claimInvite, retryProfile])
 
   // Show invite flow for new users without partner
   useEffect(() => {
@@ -269,6 +270,7 @@ function MainApp() {
     const success = await claimInvite(code)
     if (success) {
       setShowInviteFlow(false)
+      retryProfile()
     }
     return success
   }
