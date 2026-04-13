@@ -31,7 +31,7 @@ const DEMO_PROFILE: Profile = {
 function JoinRoute() {
   const { code } = useParams<{ code: string }>()
   const navigate = useNavigate()
-  const { user, loading: authLoading, signInWithEmail, devSignIn } = useAuth()
+  const { user, authError, loading: authLoading, signInWithEmail, devSignIn } = useAuth()
   const { claimInvite } = usePartner(user?.id)
   const [claimed, setClaimed] = useState(false)
 
@@ -58,7 +58,7 @@ function JoinRoute() {
   }
 
   if (!user) {
-    return <AuthGate onSignIn={signInWithEmail} onDevSignIn={devSignIn} />
+    return <AuthGate onSignIn={signInWithEmail} onDevSignIn={devSignIn} errorMessage={authError} />
   }
 
   return <LoadingScreen />
@@ -158,12 +158,12 @@ function MainApp() {
     localStorage.setItem('praxis-theme', newTheme)
   }
 
-  const { user, profile, profileError, loading: authLoading, isProcessingCallback, signInWithEmail, signOut, devSignIn, retryProfile } = useAuth()
+  const { user, profile, profileError, authError, loading: authLoading, isProcessingCallback, signInWithEmail, signOut, devSignIn, retryProfile } = useAuth()
   const { myStones, partnerStones, placeStone } = useStones(
     user?.id,
     profile?.partner_id ?? null
   )
-  const { createInvite, claimInvite } = usePartner(user?.id)
+  const { createInvite, claimInvite, error: partnerError } = usePartner(user?.id)
 
   const [showInviteFlow, setShowInviteFlow] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -320,7 +320,7 @@ function MainApp() {
 
   // Not authenticated (and not demo mode)
   if (!demoMode && !user) {
-    return <AuthGate onSignIn={signInWithEmail} onDevSignIn={devSignIn} />
+    return <AuthGate onSignIn={signInWithEmail} onDevSignIn={devSignIn} errorMessage={authError} />
   }
 
   // Wait for profile to load after authentication (skip for dev users - profile set instantly)
@@ -338,6 +338,7 @@ function MainApp() {
         onCreateInvite={handleCreateInvite}
         onClaimInvite={handleClaimInvite}
         onSkip={handleSkipInvite}
+        errorMessage={partnerError}
       />
     )
   }

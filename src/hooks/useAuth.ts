@@ -2,11 +2,27 @@ import { useState, useEffect, useCallback } from 'react'
 import { Session, User } from '@supabase/supabase-js'
 import { supabase, Profile } from '@/lib/supabase'
 
+function normalizeSupabaseError(error: unknown, fallback: string) {
+  if (error instanceof Error) {
+    if (error.message === 'Failed to fetch' || /fetch failed/i.test(error.message)) {
+      return 'cannot reach backend'
+    }
+    return error.message || fallback
+  }
+
+  if (error && typeof error === 'object' && 'status' in error && error.status === 0) {
+    return 'cannot reach backend'
+  }
+
+  return fallback
+}
+
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profileError, setProfileError] = useState<string | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [isProcessingCallback, setIsProcessingCallback] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -14,27 +30,37 @@ export function useAuth() {
   })
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user.id, session.user.email)
-      } else {
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        setAuthError(null)
+        setSession(session)
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          await fetchProfile(session.user.id, session.user.email)
+        } else {
+          setLoading(false)
+        }
+      } catch (error) {
+        setAuthError(normalizeSupabaseError(error, 'unable to initialize auth'))
         setLoading(false)
+      } finally {
+        // If there's no PKCE callback in progress, clear the flag immediately.
+        // When there IS a callback, onAuthStateChange will clear it after the
+        // code exchange and replaceState are complete.
+        if (!new URLSearchParams(window.location.search).has('code')) {
+          setIsProcessingCallback(false)
+        }
       }
-      // If there's no PKCE callback in progress, clear the flag immediately.
-      // When there IS a callback, onAuthStateChange will clear it after the
-      // code exchange and replaceState are complete.
-      if (!new URLSearchParams(window.location.search).has('code')) {
-        setIsProcessingCallback(false)
-      }
-    })
+    }
+
+    initializeAuth()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         try {
+          setAuthError(null)
           setSession(session)
           setUser(session?.user ?? null)
           if (session?.user) {
@@ -116,7 +142,7 @@ export function useAuth() {
     } catch (err) {
       // Handle thrown exceptions (network failures, CORS errors, offline)
       // that bypass the Supabase error-return pattern
-      console.error('[useAuth] Profile fetch threw:', err)
+        console.error('[useAuth] Profile fetch threw:', err)
       setProfileError(err instanceof Error ? err.message : 'unable to load profile')
     } finally {
       setLoading(false)
@@ -130,13 +156,18 @@ export function useAuth() {
   }, [user])
 
   const signInWithEmail = useCallback(async (email: string) => {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
-    })
-    return { error }
+    try {
+      setAuthError(null)
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      })
+      return { error: error ? new Error(normalizeSupabaseError(error, 'unable to send email')) : null }
+    } catch (error) {
+      return { error: new Error(normalizeSupabaseError(error, 'unable to send email')) }
+    }
   }, [])
 
   const signOut = useCallback(async () => {
@@ -145,6 +176,7 @@ export function useAuth() {
     setUser(null)
     setProfile(null)
     setProfileError(null)
+    setAuthError(null)
   }, [])
 
   // Bypass login with real Supabase auth
@@ -170,12 +202,23 @@ export function useAuth() {
     const bypassUser = bypassUsers[code]
     if (!bypassUser) return false
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: bypassUser.email,
-      password: bypassUser.password,
-    })
+    try {
+      setAuthError(null)
+      const { error } = await supabase.auth.signInWithPassword({
+        email: bypassUser.email,
+        password: bypassUser.password,
+      })
 
-    return !error
+      if (error) {
+        setAuthError(normalizeSupabaseError(error, 'unable to sign in'))
+        return false
+      }
+
+      return true
+    } catch (error) {
+      setAuthError(normalizeSupabaseError(error, 'unable to sign in'))
+      return false
+    }
   }, [])
 
   return {
@@ -183,6 +226,7 @@ export function useAuth() {
     user,
     profile,
     profileError,
+    authError,
     loading,
     isProcessingCallback,
     signInWithEmail,

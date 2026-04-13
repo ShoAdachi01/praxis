@@ -14,27 +14,31 @@ export function useStones(userId: string | undefined, partnerId: string | null) 
     }
 
     const fetchStones = async () => {
-      // Fetch my stones
-      const { data: mine } = await supabase
-        .from('stones')
-        .select('*')
-        .eq('user_id', userId)
-        .order('placed_at', { ascending: false })
-
-      if (mine) setMyStones(mine)
-
-      // Fetch partner's stones if linked
-      if (partnerId) {
-        const { data: theirs } = await supabase
+      try {
+        // Fetch my stones
+        const { data: mine } = await supabase
           .from('stones')
           .select('*')
-          .eq('user_id', partnerId)
+          .eq('user_id', userId)
           .order('placed_at', { ascending: false })
 
-        if (theirs) setPartnerStones(theirs)
-      }
+        if (mine) setMyStones(mine)
 
-      setLoading(false)
+        // Fetch partner's stones if linked
+        if (partnerId) {
+          const { data: theirs } = await supabase
+            .from('stones')
+            .select('*')
+            .eq('user_id', partnerId)
+            .order('placed_at', { ascending: false })
+
+          if (theirs) setPartnerStones(theirs)
+        } else {
+          setPartnerStones([])
+        }
+      } finally {
+        setLoading(false)
+      }
     }
 
     fetchStones()
@@ -95,21 +99,27 @@ export function useStones(userId: string | undefined, partnerId: string | null) 
   const placeStone = useCallback(async (text: string) => {
     if (!userId || !text.trim()) return { error: new Error('Invalid input') }
 
-    const { data, error } = await supabase
-      .from('stones')
-      .insert({
-        user_id: userId,
-        text: text.trim(),
-      })
-      .select()
-      .single()
+    try {
+      const { data, error } = await supabase
+        .from('stones')
+        .insert({
+          user_id: userId,
+          text: text.trim(),
+        })
+        .select()
+        .single()
 
-    if (!error && data) {
-      // Optimistically add to local state (realtime will also trigger)
-      setMyStones(prev => [data, ...prev])
+      if (!error && data) {
+        // Optimistically add to local state (realtime will also trigger)
+        setMyStones(prev => [data, ...prev])
+      }
+
+      return { data, error }
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error : new Error('unable to place stone'),
+      }
     }
-
-    return { data, error }
   }, [userId])
 
   // Get today's stones only

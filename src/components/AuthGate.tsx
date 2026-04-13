@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 interface AuthGateProps {
   onSignIn: (email: string) => Promise<{ error: Error | null }>
   onDevSignIn?: (code: string) => Promise<boolean>
+  errorMessage?: string | null
 }
 
-export function AuthGate({ onSignIn, onDevSignIn }: AuthGateProps) {
+export function AuthGate({ onSignIn, onDevSignIn, errorMessage }: AuthGateProps) {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -42,11 +43,13 @@ export function AuthGate({ onSignIn, onDevSignIn }: AuthGateProps) {
     setLoading(false)
 
     if (signInError) {
-      setError('unable to send email')
+      setError(signInError.message || 'unable to send email')
     } else {
       setSent(true)
     }
   }
+
+  const visibleError = error ?? errorMessage
 
   return (
     <div className="h-full flex flex-col items-center justify-center px-8 grain">
@@ -94,14 +97,14 @@ export function AuthGate({ onSignIn, onDevSignIn }: AuthGateProps) {
             </motion.p>
 
             {/* Error message */}
-            {error && (
+            {visibleError && (
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 0.5 }}
                 className="text-center text-xs mt-4"
                 style={{ color: 'var(--text-muted)' }}
               >
-                {error}
+                {visibleError}
               </motion.p>
             )}
           </motion.form>

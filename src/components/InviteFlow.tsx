@@ -5,9 +5,10 @@ interface InviteFlowProps {
   onCreateInvite: () => Promise<{ code: string } | null>
   onClaimInvite: (code: string) => Promise<boolean>
   onSkip: () => void
+  errorMessage?: string | null
 }
 
-export function InviteFlow({ onCreateInvite, onClaimInvite, onSkip }: InviteFlowProps) {
+export function InviteFlow({ onCreateInvite, onClaimInvite, onSkip, errorMessage }: InviteFlowProps) {
   const [mode, setMode] = useState<'choose' | 'create' | 'join'>('choose')
   const [inviteCode, setInviteCode] = useState('')
   const [generatedCode, setGeneratedCode] = useState('')
@@ -16,12 +17,15 @@ export function InviteFlow({ onCreateInvite, onClaimInvite, onSkip }: InviteFlow
   const [copied, setCopied] = useState(false)
 
   const handleCreate = async () => {
+    setError('')
     setLoading(true)
     const result = await onCreateInvite()
     setLoading(false)
     if (result) {
       setGeneratedCode(result.code)
       setMode('create')
+    } else if (errorMessage) {
+      setError(errorMessage)
     }
   }
 
@@ -32,7 +36,7 @@ export function InviteFlow({ onCreateInvite, onClaimInvite, onSkip }: InviteFlow
     const success = await onClaimInvite(inviteCode)
     setLoading(false)
     if (!success) {
-      setError('invalid code')
+      setError(errorMessage || 'invalid code')
     }
   }
 
@@ -86,6 +90,10 @@ export function InviteFlow({ onCreateInvite, onClaimInvite, onSkip }: InviteFlow
                 continue alone
               </button>
             </div>
+
+            {error && (
+              <p className="text-xs text-[var(--accent-self)]">{error}</p>
+            )}
           </motion.div>
         )}
 
